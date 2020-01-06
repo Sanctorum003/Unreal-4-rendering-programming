@@ -28,6 +28,11 @@ public class RayLine : ModuleRules
 			new string[]
 			{
 				"Core",
+                "CoreUObject",
+                "Engine",
+                "RenderCore",
+                "ShaderCore",
+                "RHI"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
