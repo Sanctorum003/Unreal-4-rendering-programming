@@ -16,3 +16,6 @@ RayMarching/Plugins/UnrealShadertoy/Intermediate/
 RayMarching/Plugins/UnrealShadertoy/Binaries/Win64/UE4Editor-UnrealShadertoy.dll
 RayMarching/Plugins/UnrealShadertoy/Binaries/
 RayMarching/Plugins/
+ProceduralTexture/.vs/
+ProceduralTexture/Binaries/
+ProceduralTexture/Plugins/
