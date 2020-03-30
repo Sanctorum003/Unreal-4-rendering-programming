@@ -42,6 +42,18 @@ public:
 	//UPROPERTY宏,暴露给蓝图并纳入垃圾回收中
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = RayLineComponent)
 		float DebugSec;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = RayLineComponent)
+		FVector RayDirection;
+
+	UPROPERTY(EditAnywhere, Category = RayConfig)
+		int32 MaxHitTimes;
+
+	UPROPERTY(EditAnywhere, Category = RayConfig)
+		float RayDisappearDistance;
+
+	UPROPERTY(EditAnywhere, Category = RayConfig)
+		float RayWidth;
 	
 	//~ Begin UPrimitiveComponent Interface.
 	//会创建场景代理
@@ -71,5 +83,7 @@ public:
 
 	TArray<FRayLineHitPointDesc> RayLineHitPoints;
 
+	bool RayTracingHit(FVector RayOrigin, FVector RayDirection, float RayMarhingLength, FHitResult& OutHitResoult);
+	
 	friend class FRayLineMeshSceneProxy;
 };

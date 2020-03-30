@@ -15,6 +15,7 @@
 #include "EngineGlobals.h"
 #include "Engine/Engine.h"
 #include "Private/AssetTypeActions/AssetTypeActions_StaticMesh.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 /** 4.17版本 Vertex Buffer */
 /*
@@ -124,6 +125,8 @@ public:
 		, VertexFactory(GetScene().GetFeatureLevel(),"FRayLineScenceProxy") // VertexFactory需要用特征等级初始化.
 		, DynamicData(NULL)
 		, MaterialRelevance(Component->GetMaterialRelevance(GetScene().GetFeatureLevel()))
+		, MaxHitTimes(Component->MaxHitTimes)
+		, RayWidth(Component->RayWidth)
 	{
 
 		//VertexBuffer.NumVerts = GetRequiredVertexCount(); 4.17
@@ -170,19 +173,19 @@ public:
 
 	int32 GetRequiredVertexCount() const
 	{
-		return 40;
+		return (MaxHitTimes + 2) * 2;
 	}
 
 	int32 GetRequiredIndexCount() const
 	{
-		return 60;
+		return (MaxHitTimes + 1) * 6;
 	}
 
 	//根据NewDynamicData->HitPointsPosition中的点，构建Mesh的顶点和Index顺序
 	void BuildRayLineMesh(const TArray<FVector>& Points,TArray<FDynamicMeshVertex>& Vertices,TArray<int32>& Indices)
 	{
 		
-		for (int32 i = 0; i < Points.Num(); i++)
+		/*for (int32 i = 0; i < Points.Num(); i++)
 		{
 			FDynamicMeshVertex newvert0;
 			newvert0.Position = Points[i] + FVector(-100, 100, 0);
@@ -204,6 +207,29 @@ public:
 			Indices.Add(4 * i + 1);
 			Indices.Add(4 * i + 3);
 			Indices.Add(4 * i + 2);
+		}*/
+
+		for (int32 i = 0; i < Points.Num(); i++)
+		{
+			FDynamicMeshVertex newvert0;
+			newvert0.Position = Points[i] + FVector(0, RayWidth, 0);
+			newvert0.TextureCoordinate[0] = FVector2D(i / 10, 1);
+
+			FDynamicMeshVertex newvert1;
+			newvert1.Position = Points[i] + FVector(0, -RayWidth, 0);
+			newvert1.TextureCoordinate[0] = FVector2D(i / 10, 0);
+
+			Vertices.Add(newvert0);
+			Vertices.Add(newvert1);
+		}
+		for (int32 i = 0; i < Points.Num() - 1; i++)
+		{
+			Indices.Add(2 * i);
+			Indices.Add(2 * i + 2);
+			Indices.Add(2 * i + 1);
+			Indices.Add(2 * i + 2);
+			Indices.Add(2 * i + 3);
+			Indices.Add(2 * i + 1);
 		}
 	}
 
@@ -392,6 +418,11 @@ private:
 	FRayLineDynamicData* DynamicData;
 
 	FMaterialRelevance MaterialRelevance;
+
+protected:
+	int32 MaxHitTimes;
+
+	float RayWidth;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -407,7 +438,10 @@ URayBasicComponent::URayBasicComponent(const FObjectInitializer& ObjectInitializ
 	bAutoActivate = true;
 
 	DebugSec = 200.0f;
-
+	
+	MaxHitTimes = 10;
+	RayDisappearDistance = 100000.0f;
+	RayWidth = 100.0f;
 }
 
 //用于注册组件
@@ -416,22 +450,7 @@ void URayBasicComponent::OnRegister()
 	Super::OnRegister();
 
 	RayLineHitPoints.Reset();
-	FVector RayDirection = FVector(1.0f, 0.0f, 0.0f);
-	FVector RayOrigin = FVector(0.0f, 0.0f, 0.0f);
-	int32 HitPointsNum = 10;
-	float SecLength = 50.0f;
-
-	RayLineHitPoints.AddUninitialized(HitPointsNum);
-	RayLineHitPoints[0].HitPosition = RayOrigin;
-	RayLineHitPoints[0].HitNextDir = RayDirection;
-
-	float t = DebugSec;
-	for (int32 i = 1; i < HitPointsNum; i++)
-	{
-		RayLineHitPoints[i].HitPosition = RayDirection * t + RayOrigin;
-
-		t += DebugSec;
-	}
+	RayLineHitPoints.AddUninitialized(MaxHitTimes + 2);
 
 	//这个函数会开启一个开关，让引擎每帧更新所有组件渲染状态的时候，会更新到我们的组件。
 	MarkRenderDynamicDataDirty();
@@ -441,23 +460,30 @@ void URayBasicComponent::TickComponent(float DeltaTime, enum ELevelTick TickType
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	RayLineHitPoints.Reset();
-	FVector RayDirection = FVector(1.0f, 0.0f, 0.0f);
-	FVector RayOrigin = FVector(0.0f, 0.0f, 0.0f);
-	int32 HitPointsNum = 10;
-	float SecLength = 50.0f;
+	FVector RayDirection = this->RayDirection;
+	FVector RayOrigin = GetOwner()->GetActorLocation();
 
-	RayLineHitPoints.AddUninitialized(HitPointsNum);
-	RayLineHitPoints[0].HitPosition = RayOrigin;
-	RayLineHitPoints[0].HitNextDir = RayDirection;
+	FHitResult OutHit;
+	RayLineHitPoints[0].HitPosition = GetOwner()->GetTransform().Inverse().TransformPosition(RayOrigin);
 
-	float t = DebugSec;
-	for (int32 i = 1; i < HitPointsNum; i++)
+	for (int32 i = 0; i < MaxHitTimes; i++)
 	{
-		RayLineHitPoints[i].HitPosition = RayDirection * t + RayOrigin;
+		bool bHit = RayTracingHit(RayOrigin, RayDirection, 2000.0f, OutHit);
+		if (!bHit)
+		{
+			FVector LastPointLoc = RayLineHitPoints[i + 1 - 1].HitPosition;
+			RayLineHitPoints[i + 1].HitPosition = LastPointLoc;
+			continue;
+		}
+		FVector HitPointLoc = OutHit.Location + OutHit.ImpactNormal * 0.1f;
+		FVector HitPointLocTransformed = GetOwner()->GetTransform().Inverse().TransformPosition(HitPointLoc);
+		RayLineHitPoints[i+1].HitPosition = HitPointLocTransformed;
 
-		t += DebugSec;
+		RayOrigin = HitPointLoc;
+		RayDirection = FMath::GetReflectionVector(RayDirection, OutHit.ImpactNormal);
 	}
+
+	RayLineHitPoints[MaxHitTimes + 1].HitPosition = RayLineHitPoints[MaxHitTimes].HitPosition + RayDirection * RayDisappearDistance;
 
 	// Need to send new data to render thread
 	// 函数如果被调用，为组件开启了渲染状态开关，那么引擎就会自己调用CreateRenderState_Concurrent
@@ -466,12 +492,34 @@ void URayBasicComponent::TickComponent(float DeltaTime, enum ELevelTick TickType
 	UpdateComponentToWorld();
 }
 
+bool URayBasicComponent::RayTracingHit(FVector RayOrigin, FVector RayDirection, float RayMarhingLength, FHitResult& OutHitResoult)
+{
+	const TArray<AActor*>IgActor;
+	FVector startpos = RayOrigin;
+	FVector endpos = RayOrigin + RayDirection * RayMarhingLength;
+	return UKismetSystemLibrary::LineTraceSingle(
+		GetOwner(),
+		startpos,
+		endpos,
+		ETraceTypeQuery::TraceTypeQuery1,
+		false,
+		IgActor,
+		EDrawDebugTrace::Type::ForOneFrame,
+		OutHitResoult,
+		true,
+		FLinearColor::Blue,
+		FLinearColor::Red,
+		1.0f);
+}
+
 void URayBasicComponent::CreateRenderState_Concurrent()
 {
 	Super::CreateRenderState_Concurrent();
 
 	SendRenderDynamicData_Concurrent();
 }
+
+
 
 void URayBasicComponent::SendRenderDynamicData_Concurrent()
 {
