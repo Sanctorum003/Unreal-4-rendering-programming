@@ -17,7 +17,18 @@
 #include "Private/AssetTypeActions/AssetTypeActions_StaticMesh.h"
 #include "Kismet/KismetSystemLibrary.h"
 
-/** 4.17版本 Vertex Buffer */
+/* Vertex Buffer */
+/**
+ *	在4.17中
+ *		Vertex Buffer需要从FVectorBuffer继承，然后自定义
+ *  4.19中
+ *		Vertex Buffer使用FStaticMeshVertexBuffers VertexBuffers;
+ *		所以所有有关Vertex Buffer的操作都会有所改变，下方我会标识出来
+ *			注意一点的是FStaticMeshVertexBuffers包含三个Buffer，所以以下很多操作要分别对这三个进行操作，具体可以点进去看
+ *
+ *  具体参考CableComponent
+ */
+
 /*
 class FRayLineMeshVertexBuffer : public FVertexBuffer
 {
@@ -43,19 +54,31 @@ class FRayLineMeshIndexBuffer : public FIndexBuffer
 public:
 
 	//初始化此资源使用的RHI资源。 在进入资源和RHI都已初始化的状态时调用。仅由渲染线程调用。
+	//这个用于根据NumIndices的大小，来创建一个缓存区保存索引数据
 	virtual void InitRHI() override
 	{
 		FRHIResourceCreateInfo CreateInfo;
-		//FIndexBuffer::IndexBufferRHI
+		//IndexBufferRHI是FIndexBuffer的成员，那可以猜测FIndexBuffer同一时刻只能给一个Component组件用
 		//IndexBufferRHI用于接受来自逻辑线程的Index数据,在渲染线程的场景代理中将index数据传给DrawPolicy
 		// Index数据块 ：步长 / 总大小 / 缓冲类型 / 创建信息
+		//BUF_Dynamic:The buffer will be written to occasionally, GPU read only, CPU write only.  The data lifetime is until the next update, or the buffer is destroyed.
 		IndexBufferRHI = RHICreateIndexBuffer(sizeof(int32), NumIndices * sizeof(int32), BUF_Dynamic, CreateInfo);
 	}
 
 	int32 NumIndices;
 };
 
-/** 4.17版本 Vertex Factory */
+/* Vertex Factory */
+/**
+ *	在4.17中
+ *		Vertex Factory需要从FLocalVertexFactory继承，然后自定义
+ *  4.19中
+ *		Vertex Factory直接使用FLocalVertexFactory VertexFactory;
+ *		所以所有有关Vertex Factory的操作都会有所改变，下方我会标识出来
+ *
+ * 	具体参考CableComponent
+ */
+
 /*
 class FCustomMeshVertexFactory : public FLocalVertexFactory
 {
@@ -109,20 +132,27 @@ struct FRayLineDynamicData
 };
 
 /** Scene proxy */
-// 渲染线程部分
+// * Encapsulates the data which is mirrored to render a UPrimitiveComponent parallel to the game thread.
+// * This is intended to be subclassed to support different primitive types.
+// 上面两行是FPrimitiveSceneProxy的描述，创建场景代理的时候需要继承FPrimitiveSceneProxy并自定义
+// 渲染线程部分 
 class FRayLineMeshSceneProxy : public FPrimitiveSceneProxy
 {
 public:
+	/** Return a type (or subtype) specific hash for sorting purposes */
+	// 4.17中不用重写，4.19中需要。完全照抄即可，意义不明
 	SIZE_T GetTypeHash() const override
 	{
 		static size_t UniquePointer;
 		return reinterpret_cast<size_t>(&UniquePointer);
 	}
 
+	//Constructor Func
 	FRayLineMeshSceneProxy(URayBasicComponent* Component)
 		: FPrimitiveSceneProxy(Component)
 		, Material(NULL)
-		, VertexFactory(GetScene().GetFeatureLevel(),"FRayLineScenceProxy") // VertexFactory需要用特征等级初始化.
+		// 4.19 VertexFactory需要用特征等级初始化.
+		, VertexFactory(GetScene().GetFeatureLevel(),"FRayLineScenceProxy") 
 		, DynamicData(NULL)
 		, MaterialRelevance(Component->GetMaterialRelevance(GetScene().GetFeatureLevel()))
 		, MaxHitTimes(Component->MaxHitTimes)
@@ -132,7 +162,7 @@ public:
 		//VertexBuffer.NumVerts = GetRequiredVertexCount(); 4.17
 
 		//4.19
-		//InitWithDummyData()函数将VertexFactory与VertexBuffers绑定
+		//InitWithDummyData()函数将VertexFactory与VertexBuffers绑定，这一步会在VertexBuffers保存NumVertices和Stride
 		VertexBuffers.InitWithDummyData(&VertexFactory, GetRequiredVertexCount());
 
 		
@@ -263,16 +293,22 @@ public:
 		{
 			const FDynamicMeshVertex& Vertex = Vertices[i];
 
+			//将定点数据保存在VertexBuffers的PositionVertexBuffer的Data数据域中
 			VertexBuffers.PositionVertexBuffer.VertexPosition(i) = Vertex.Position;
 			VertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(i, Vertex.TangentX, Vertex.GetTangentY(), Vertex.TangentZ);
 			VertexBuffers.StaticMeshVertexBuffer.SetVertexUV(i, 0, Vertex.TextureCoordinate[0]);
+			//将定点数据保存在VertexBuffers的PositionVertexBuffer的Data数据域中
 			VertexBuffers.ColorVertexBuffer.VertexColor(i) = Vertex.Color;
 		}
 
 		//将VertexBuffers和IndexBufferData的数据通关内存复制的方法写入RHI中对应的位置，提供给系统API使用（win下就是提供给dx使用的数据）
 		{
 			auto& VertexBuffer = VertexBuffers.PositionVertexBuffer;
+			//VertexBuffer.VertexBufferRHI 猜测：该是用来与dx交互的VertexBuffer
+			//猜测：各种XXXRHI是用来抽象各种不同平台的,最终要DrawCall的使用必须要使用XXXRHI，这样这些XXXRHI会自动匹配不同的平台，调用相关图形库(dx,opengl等)
+			//有关XXXRHI可以看一下这个：http://www.manew.com/thread-100777-1-1.html
 			void* VertexBufferData = RHILockVertexBuffer(VertexBuffer.VertexBufferRHI, 0, VertexBuffer.GetNumVertices() * VertexBuffer.GetStride(), RLM_WriteOnly);
+			//Dest,Src,count
 			FMemory::Memcpy(VertexBufferData, VertexBuffer.GetVertexData(), VertexBuffer.GetNumVertices() * VertexBuffer.GetStride());
 			RHIUnlockVertexBuffer(VertexBuffer.VertexBufferRHI);
 		}
@@ -322,15 +358,17 @@ public:
 		//用于定义一个cpu时间统计的方法，详细可参考https://blog.csdn.net/leonwei/article/details/100099096
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_FRayLineMeshSceneProxy_GetDynamicMeshElements);
 
-		//wireframe 线框模式
+		//是否是线框模式
 		const bool bWireframe = AllowDebugViewmodes() && ViewFamily.EngineShowFlags.Wireframe;
 
+		//创建相应的相框实例
 		auto WireframeMaterialInstance = new FColoredMaterialRenderProxy(
 			GEngine->WireframeMaterial ? GEngine->WireframeMaterial->GetRenderProxy(IsSelected()) : NULL,
 			FLinearColor(0, 0.5f, 1.f)
 		);
 
 		/** Add a material render proxy that will be cleaned up automatically */
+		/** Material proxies that will be deleted at the end of the frame. */
 		Collector.RegisterOneFrameMaterialProxy(WireframeMaterialInstance);
 
 		FMaterialRenderProxy* MaterialProxy = NULL;
@@ -378,7 +416,7 @@ public:
 	* @param View - The view to determine relevance for.
 	* @return The relevance of the primitive's elements to the view.
 	*/
-	//确定绘制时需要哪些视图（可见）
+	//确定绘制时需要哪些视图（可见），设置使用哪些渲染模型
 	virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override
 	{
 		FPrimitiveViewRelevance Result;
@@ -485,10 +523,13 @@ void URayBasicComponent::TickComponent(float DeltaTime, enum ELevelTick TickType
 
 	RayLineHitPoints[MaxHitTimes + 1].HitPosition = RayLineHitPoints[MaxHitTimes].HitPosition + RayDirection * RayDisappearDistance;
 
-	// Need to send new data to render thread
-	// 函数如果被调用，为组件开启了渲染状态开关，那么引擎就会自己调用CreateRenderState_Concurrent
+	//Need to send new data render thread
+	//这个函数会开启一个开关，让引擎每帧更新所有组件渲染状态的时候，会更新到我们的组件。
+	//会自动调用CreateRenderState_Concurrent()，然后调用SendRenderDynamicData_Concurrent()
 	MarkRenderDynamicDataDirty();
 
+	//call this because bounds have changed
+	//有使用到CalcBounds（）
 	UpdateComponentToWorld();
 }
 

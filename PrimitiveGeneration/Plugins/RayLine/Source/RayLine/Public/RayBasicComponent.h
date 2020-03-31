@@ -57,7 +57,7 @@ public:
 	
 	//~ Begin UPrimitiveComponent Interface.
 	//会创建场景代理
-	//	场景代理的作用就是负责在渲染线程端把逻辑线程这边的数据压入渲染管线
+	//场景代理的作用就是负责在渲染线程端把逻辑线程这边的数据压入渲染管线
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
 	//~ End UPrimitiveComponent Interface.
 
@@ -83,6 +83,7 @@ public:
 
 	TArray<FRayLineHitPointDesc> RayLineHitPoints;
 
+	//用于射线检测
 	bool RayTracingHit(FVector RayOrigin, FVector RayDirection, float RayMarhingLength, FHitResult& OutHitResoult);
 	
 	friend class FRayLineMeshSceneProxy;
