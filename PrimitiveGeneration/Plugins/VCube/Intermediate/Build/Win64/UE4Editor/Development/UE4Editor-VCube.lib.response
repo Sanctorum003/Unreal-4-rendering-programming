@@ -1,0 +1,13 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UE4Editor-VCube.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"D:\Unreal\UE_4.19\Engine\Intermediate\Build\Win64\UE4Editor\Development\Engine\SharedPCH.Engine.h.obj"
+"E:\CodeData\UE4\Unreal 4 rendering programming\PrimitiveGeneration\Plugins\VCube\Intermediate\Build\Win64\UE4Editor\Development\VCube\Module.VCube.cpp.obj"
+"D:\Unreal\UE_4.19\Engine\Intermediate\Build\Win64\UE4Editor\Development\VCube\PCLaunch.rc.res"
+"D:\Unreal\UE_4.19\Engine\Intermediate\Build\Win64\UE4Editor\Development\ModuleVersionResource.rc.inl.res"
+/OUT:"E:\CodeData\UE4\Unreal 4 rendering programming\PrimitiveGeneration\Plugins\VCube\Intermediate\Build\Win64\UE4Editor\Development\UE4Editor-VCube.lib"

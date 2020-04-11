@@ -19,3 +19,5 @@ RayMarching/Plugins/
 ProceduralTexture/.vs/
 ProceduralTexture/Binaries/
 ProceduralTexture/Plugins/
+PrimitiveGeneration/Plugins/VCube/Binaries/
+PrimitiveGeneration/Plugins/VCube/Intermediate/Build/Win64/UE4Editor/DebugGame/UE4Editor-VCube-Win64-DebugGame.dll.response
