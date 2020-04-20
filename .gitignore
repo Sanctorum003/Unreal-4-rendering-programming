@@ -21,3 +21,9 @@ ProceduralTexture/Binaries/
 ProceduralTexture/Plugins/
 PrimitiveGeneration/Plugins/VCube/Binaries/
 PrimitiveGeneration/Plugins/VCube/Intermediate/Build/Win64/UE4Editor/DebugGame/UE4Editor-VCube-Win64-DebugGame.dll.response
+RayTracing/.vs/
+RayTracing/Binaries/
+RayTracing/Intermediate/
+RayTracing/Plugins/HikariTsuiseki/Binaries/
+RayTracing/Plugins/HikariTsuiseki/Intermediate/
+RayTracing/Saved/

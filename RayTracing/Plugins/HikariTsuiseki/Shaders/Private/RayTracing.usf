@@ -1,0 +1,13 @@
+
+RWTexture2D<float4> OutputSurface;
+
+[numthreads(32, 32, 1)]
+void MainCS(uint3 ThreadId : SV_DispatchThreadID)
+{
+    float sizeX, sizeY;
+    OutputSurface.GetDimensions(sizeX, sizeY);
+    float2 iResolution = float2(sizeX, sizeY);
+    float2 uv = (ThreadId.xy / iResolution.xy);
+    
+    OutputSurface[ThreadId.xy] = float4(uv, 0, 1);
+}
