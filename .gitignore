@@ -27,3 +27,9 @@ RayTracing/Intermediate/
 RayTracing/Plugins/HikariTsuiseki/Binaries/
 RayTracing/Plugins/HikariTsuiseki/Intermediate/
 RayTracing/Saved/
+MaterialAndShading/.vs/
+MaterialAndShading/Binaries/
+MaterialAndShading/Intermediate/
+MaterialAndShading/Plugins/CustomNode/Binaries/
+MaterialAndShading/Plugins/CustomNode/Intermediate/
+MaterialAndShading/Saved/

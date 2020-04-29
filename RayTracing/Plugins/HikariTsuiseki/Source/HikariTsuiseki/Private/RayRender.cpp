@@ -149,14 +149,14 @@ void ARayRender::MainRayRender()
 {
 	ERHIFeatureLevel::Type FeatureLevel = GetWorld()->Scene->GetFeatureLevel();
 	ENQUEUE_RENDER_COMMAND(RayTracingCommand)
-		(
-			[FeatureLevel](FRHICommandListImmediate& RHICmdList)
-	{
-		RayTracing_RenderThread
-		(
-			RHICmdList,
-			FeatureLevel
-		);
-	}
+	(
+  [FeatureLevel](FRHICommandListImmediate& RHICmdList)
+		{
+			RayTracing_RenderThread
+			(
+				RHICmdList,
+				FeatureLevel
+			);
+		}
 	);
 }
