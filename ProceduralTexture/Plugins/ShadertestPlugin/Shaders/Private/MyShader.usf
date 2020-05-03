@@ -1,0 +1,328 @@
+#include "/Engine/Public/Platform.ush"  
+  
+Texture2D MyTexture;  
+SamplerState MyTextureSampler;  
+  
+float4 SimpleColor;  
+  
+void MainVS(  
+    in float4 InPosition : ATTRIBUTE0,  
+    in float2 InUV : ATTRIBUTE1,  
+    out float2 OutUV : TEXCOORD0,  
+    out float4 OutPosition : SV_POSITION  
+    )  
+{  
+    // screenspace position from vb  
+    OutPosition = InPosition;  
+    OutUV = InUV;  
+  
+}  
+
+// Fast Noise（White Noise）
+float RandFast(float2 PixelPos, float Magic = 3571.0)
+{
+    float2 Random2 = (1.0 / 4320.0) * PixelPos + float2(0.25, 0.0);
+    float Random = frac(dot(Random2 * Random2, Magic));
+    Random = frac(Random * Random * (2 * Magic));
+    return Random;
+}
+// Fast Noise（White Noise）END
+
+
+// Random With Scale（White Noise）
+float2 Random(float2 uv)
+{
+    float Magic = 3571;
+    float2 PixelPos = uv * 512;
+    float2 Random2 = (1.0 / 4320.0) * PixelPos + float2(0.25, 0.0);
+    float Random = frac(dot(Random2 * Random2, Magic));
+    Random = frac(Random * Random * (2 * Magic));
+    return Random;
+}
+
+float main(float2 uv)
+{
+    return Random(floor(uv * 50));
+}
+// Random With Scale（White Noise） END
+
+
+// Perlin_noise
+
+//#define Use_Perlin
+//#define Use_Value
+#define Use_Simplex
+// ========= Hash ===========
+
+float3 hashOld33(float3 p)
+{
+    p = float3(dot(p, float3(127.1, 311.7, 74.7)),
+			  dot(p, float3(269.5, 183.3, 246.1)),
+			  dot(p, float3(113.5, 271.9, 124.6)));
+    
+    return -1.0 + 2.0 * frac(sin(p) * 43758.5453123);
+}
+
+float hashOld31(float3 p)
+{
+    float h = dot(p, float3(127.1, 311.7, 74.7));
+    
+    return -1.0 + 2.0 * frac(sin(h) * 43758.5453123);
+}
+
+// Grab from https://www.shadertoy.com/view/4djSRW
+#define MOD3 float3(0.1031, 0.11369, 0.13787)
+//#define MOD3 float3(443.8975,397.2973, 491.1871)
+float hash31(float3 p3)
+{
+    p3 = frac(p3 * MOD3);
+    p3 += dot(p3, p3.yzx + 19.19);
+    return -1.0 + 2.0 * frac((p3.x + p3.y) * p3.z);
+}
+
+float3 hash33(float3 p3)
+{
+    p3 = frac(p3 * MOD3);
+    p3 += dot(p3, p3.yxz + 19.19);
+    return -1.0 + 2.0 * frac(float3((p3.x + p3.y) * p3.z, (p3.x + p3.z) * p3.y, (p3.y + p3.z) * p3.x));
+}
+
+// ========= Noise ===========
+
+float value_noise(float3 p)
+{
+    float3 pi = floor(p);
+    float3 pf = p - pi;
+    
+    float3 w = pf * pf * (3.0 - 2.0 * pf);
+    
+    return lerp(
+        		lerp(
+        			lerp(hash31(pi + float3(0, 0, 0)), hash31(pi + float3(1, 0, 0)), w.x),
+        			lerp(hash31(pi + float3(0, 0, 1)), hash31(pi + float3(1, 0, 1)), w.x),
+                    w.z),
+        		lerp(
+                    lerp(hash31(pi + float3(0, 1, 0)), hash31(pi + float3(1, 1, 0)), w.x),
+        			lerp(hash31(pi + float3(0, 1, 1)), hash31(pi + float3(1, 1, 1)), w.x),
+                    w.z),
+        		w.y);
+}
+
+float perlin_noise(float3 p)
+{
+    float3 pi = floor(p);
+    float3 pf = p - pi;
+    
+    float3 w = pf * pf * (3.0 - 2.0 * pf);
+    
+    return lerp(
+        		lerp(
+                	lerp(dot(pf - float3(0, 0, 0), hash33(pi + float3(0, 0, 0))),
+                        dot(pf - float3(1, 0, 0), hash33(pi + float3(1, 0, 0))),
+                       	w.x),
+                	lerp(dot(pf - float3(0, 0, 1), hash33(pi + float3(0, 0, 1))),
+                        dot(pf - float3(1, 0, 1), hash33(pi + float3(1, 0, 1))),
+                       	w.x),
+                	w.z),
+        		lerp(
+                    lerp(dot(pf - float3(0, 1, 0), hash33(pi + float3(0, 1, 0))),
+                        dot(pf - float3(1, 1, 0), hash33(pi + float3(1, 1, 0))),
+                       	w.x),
+                   	lerp(dot(pf - float3(0, 1, 1), hash33(pi + float3(0, 1, 1))),
+                        dot(pf - float3(1, 1, 1), hash33(pi + float3(1, 1, 1))),
+                       	w.x),
+                	w.z),
+    			w.y);
+}
+
+float simplex_noise(float3 p)
+{
+    const float K1 = 0.333333333;
+    const float K2 = 0.166666667;
+    
+    float3 i = floor(p + (p.x + p.y + p.z) * K1);
+    float3 d0 = p - (i - (i.x + i.y + i.z) * K2);
+    
+    // thx nikita: https://www.shadertoy.com/view/XsX3zB
+    float3 e = step(float3(0, 0, 0), d0 - d0.yzx);
+    float3 i1 = e * (1.0 - e.zxy);
+    float3 i2 = 1.0 - e.zxy * (1.0 - e);
+    
+    float3 d1 = d0 - (i1 - 1.0 * K2);
+    float3 d2 = d0 - (i2 - 2.0 * K2);
+    float3 d3 = d0 - (1.0 - 3.0 * K2);
+    
+    float4 h = max(0.6 - float4(dot(d0, d0), dot(d1, d1), dot(d2, d2), dot(d3, d3)), 0.0);
+    float4 n = h * h * h * h * float4(dot(d0, hash33(i)), dot(d1, hash33(i + i1)), dot(d2, hash33(i + i2)), dot(d3, hash33(i + 1.0)));
+    
+    return dot(float4(31.316, 31.316, 31.316, 31.316), n);
+}
+
+float noise(float3 p)
+{
+#ifdef Use_Perlin
+    return perlin_noise(p * 2.0);
+#elif defined Use_Value
+    return value_noise(p * 2.0);
+#elif defined Use_Simplex
+    return simplex_noise(p);
+#endif
+    
+    return 0.0;
+}
+
+// ========== Different function ==========
+
+float noise_itself(float3 p)
+{
+    return noise(p * 8.0);
+}
+
+float noise_sum(float3 p)
+{
+    float f = 0.0;
+    p = p * 4.0;
+    f += 1.0000 * noise(p);
+    p = 2.0 * p;
+    f += 0.5000 * noise(p);
+    p = 2.0 * p;
+    f += 0.2500 * noise(p);
+    p = 2.0 * p;
+    f += 0.1250 * noise(p);
+    p = 2.0 * p;
+    f += 0.0625 * noise(p);
+    p = 2.0 * p;
+    
+    return f;
+}
+
+float noise_sum_abs(float3 p)
+{
+    float f = 0.0;
+    p = p * 3.0;
+    f += 1.0000 * abs(noise(p));
+    p = 2.0 * p;
+    f += 0.5000 * abs(noise(p));
+    p = 2.0 * p;
+    f += 0.2500 * abs(noise(p));
+    p = 2.0 * p;
+    f += 0.1250 * abs(noise(p));
+    p = 2.0 * p;
+    f += 0.0625 * abs(noise(p));
+    p = 2.0 * p;
+    
+    return f;
+}
+
+float noise_sum_abs_sin(float3 p)
+{
+    float f = noise_sum_abs(p);
+    f = sin(f * 2.5 + p.x * 5.0 - 1.5);
+    
+    return f;
+}
+
+// Perlin_noise end
+
+// turbulence noise
+
+// Some useful functions
+float3 mod289(float3 x)
+{
+    return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+float2 mod289(float2 x)
+{
+    return x - floor(x * (1.0 / 289.0)) * 289.0;
+}
+float3 permute(float3 x)
+{
+    return mod289(((x * 34.0) + 1.0) * x);
+}
+
+float snoise_tur(float2 v)
+{
+
+    // Precompute values for skewed triangular grid
+    const float4 C = float4(0.211324865405187,
+                        // (3.0-sqrt(3.0))/6.0
+                        0.366025403784439,
+                        // 0.5*(sqrt(3.0)-1.0)
+                        -0.577350269189626,
+                        // -1.0 + 2.0 * C.x
+                        0.024390243902439);
+                        // 1.0 / 41.0
+
+    // First corner (x0)
+    float2 i = floor(v + dot(v, C.yy));
+    float2 x0 = v - i + dot(i, C.xx);
+
+    // Other two corners (x1, x2)
+    float2 i1 = float2(0.0, 0.0);
+    i1 = (x0.x > x0.y) ? float2(1.0, 0.0) : float2(0.0, 1.0);
+    float2 x1 = x0.xy + C.xx - i1;
+    float2 x2 = x0.xy + C.zz;
+
+    // Do some permutations to avoid
+    // truncation effects in permutation
+    i = mod289(i);
+    float3 p = permute(
+            permute(i.y + float3(0.0, i1.y, 1.0))
+                + i.x + float3(0.0, i1.x, 1.0));
+
+    float3 m = max(float3(0.5, 0.5, 0.5) - float3(dot(x0, x0), dot(x1, x1), dot(x2, x2)), 0.0);
+
+    m = m * m;
+    m = m * m;
+
+    // Gradients:
+    //  41 pts uniformly over a line, mapped onto a diamond
+    //  The ring size 17*17 = 289 is close to a multiple
+    //      of 41 (41*7 = 287)
+
+    float3 x = 2.0 * frac(p * C.www) - 1.0;
+    float3 h = abs(x) - 0.5;
+    float3 ox = floor(x + 0.5);
+    float3 a0 = x - ox;
+
+    // Normalise gradients implicitly by scaling m
+    // Approximation of: m *= inversesqrt(a0*a0 + h*h);
+    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+
+    // Compute final noise value at P
+    float3 g = float3(0.0, 0.0, 0.0);
+    g.x = a0.x * x0.x + h.x * x0.y;
+    g.yz = a0.yz * float2(x1.x, x2.x) + h.yz * float2(x1.y, x2.y);
+    return 130.0 * dot(m, g);
+}
+
+#define OCTAVES 3
+float turbulence(in float2 st)
+{
+    // Initial values
+    float value = 0.0;
+    float amplitude = 0.5;
+    float frequency = 0.0;
+    //
+    // Loop of octaves
+    for (int i = 0; i < OCTAVES; i++)
+    {
+        value += amplitude * abs(snoise_tur(st));
+        st *= 2.0;
+        amplitude *= 0.5;
+    }
+    return value;
+}
+// turbulence noise end
+
+// 其他类似，可以查看https://zhuanlan.zhihu.com/p/47959352网站
+
+void MainPS(  
+    in float2 UV : TEXCOORD0,  
+    out float4 OutColor : SV_Target0  
+    )  
+{  
+    //OutColor = float4(MyTexture.Sample(MyTextureSampler, UV.xy).rgb, 1.0f);  
+    //OutColor *= SimpleColor;  
+    OutColor = turbulence(UV.xy) * SimpleColor;
+}  

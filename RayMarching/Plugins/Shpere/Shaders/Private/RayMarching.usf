@@ -1,0 +1,62 @@
+#include "/Engine/Public/Platform.ush"  
+  
+float3 RayOrigin;
+float3 RayDirection;
+  
+void MainVS(
+    in float4 InPosition : ATTRIBUTE0,
+    in float2 InUV : ATTRIBUTE1,
+    out float2 OutUV : TEXCOORD0,
+    out float4 OutPosition : SV_POSITION
+    )
+{
+    // screenspace position from vb  
+    OutPosition = InPosition;
+    OutUV = InUV;
+  
+}
+
+float sphere(float3 p, float3 c, float r)
+{
+    return distance(p, c) - r;
+}
+
+float cube(float3 p, float3 b, float r)
+{
+    return length(max(abs(p) - b, 0.f)) - r;
+}
+
+float scene(float3 rp)
+{
+    float d = 0;
+    float sp = sphere(rp, float3(0.f, 100.f, 0.f), 100.f);
+    float cu = cube(rp, float3(20.f, 20.f, 100.f), 100.f);
+    
+    d = (sp < cu) ? sp : cu;
+    
+    return d;
+}
+
+float4 render(float3 ro, float3 rd)
+{
+    for (int i = 0; i < 64; ++i)
+    {
+        float d = scene(ro);
+        if (d < 0.001)
+        {
+            return float4(1.f, 0.f, 0.f, 1.f);
+        }
+        ro + d * rd;
+    }
+    return float4(1, 1, 1, 1);
+}
+
+void MainPS(
+    in float2 UV : TEXCOORD0,
+    out float4 OutColor : SV_Target0
+    )
+{
+    float4 finalres = float4(1.f, 1.f, 1.f, 1.f);
+    finalres = render(RayOrigin, RayDirection);
+    OutColor = finalres;
+}
